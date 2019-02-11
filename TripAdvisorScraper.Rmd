@@ -1,0 +1,137 @@
+---
+title: "TripAdvisorScraper"
+author: "Donya Hamzeian"
+date: "2/7/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#load libraries
+```{r}
+library(rvest)
+library(curl)
+library(httr)
+library(RSelenium)
+library(stringr)
+```
+
+#create a remote driver
+```{r}
+
+
+remDr <- remoteDriver(
+  remoteServerAddr = "localhost",
+  port = 4445L,
+  browserName = "firefox"
+)
+remDr$open()
+remDr$navigate("https://www.tripadvisor.com.au/Airlines")
+
+remDr$setTimeout(type = "implicit", milliseconds = 10000)
+remDr$setTimeout(type = "page load", milliseconds = 10000)
+remDr$setTimeout(type = "script", milliseconds = 10000)
+
+remDr$screenshot(display = T)
+```
+
+
+
+
+```{r}
+
+num_page= 59
+# url_df = data.frame(name="", rating="", href="",num_review="", stringsAsFactors = F )
+
+
+
+for (i in 37:num_page){
+  print(i)
+    html_page= read_html(remDr$getPageSource()[[1]])
+    name = html_page %>% html_nodes(".airlineName") %>% html_attr("data-name")
+    print(name)
+    href =  html_page %>% html_nodes(".detailsLink") %>% html_attr("href")
+    num_review =  html_page %>%  html_nodes(".airlineReviews") %>% html_text() %>% strsplit(' ') %>%   sapply(., function(x) x[1])%>% gsub(',', '', .) %>% as.numeric()
+    if (length(num_review)!= length(name)){
+      num_review = rep(-1, length(name))
+    }
+    temp_df = data.frame(name=name, href=href,num_review=num_review, stringsAsFactors = F )
+    temp_df = na.omit(temp_df)
+    pattern = capture(one_or_more(DGT) %R%optional(DOT)%R% optional(DGT)) %R% ' of 5 bubbles'
+    rating= str_match_all( html_page, pattern = pattern)[[1]][,2]
+    temp_df$rating = rating[1:nrow(temp_df)]
+
+url_df = rbind(url_df, temp_df)
+
+remDr$findElement(value='//*[@id="taplc_airlines_lander_main_0"]/div/div[13]/div/div/span[2]')$clickElement()
+Sys.sleep(3)
+}
+
+```
+
+
+#fill the empties
+```{r}
+
+for(i in 565: nrow(url_df) ){
+  if (url_df$num_review[i]==-1 | url_df$num_review[i]==-2 )
+  {
+    print(i)
+  url = paste('https://www.tripadvisor.com.au', url_df$href[i], sep ='')
+  # download.file(url, destfile = "scrapedpage.html", quiet=TRUE)
+
+  target = read_html(url)
+  Sys.sleep(2)
+
+  a= target %>% html_nodes(".numRatings") %>% html_attr("content")
+  if(length(a)>0)
+    url_df$num_review[i]= as.numeric(a)
+  }
+  else{
+    url_df$num_review[i]=-2
+  }
+}
+
+save(url_df, file = 'url_df.RData')
+```
+
+
+#select some airlines to extract reviews from
+```{r}
+selected_airlines = url_df[url_df$num_review>100,]
+
+
+
+```
+
+
+
+
+```{r}
+
+url = "https://www.tripadvisor.com.au/Airlines"
+num_page = 60
+target = read_html(url)
+airline_names = target %>%  html_nodes(".prw_rup prw_common_bubble_rating")
+
+airline_names = target %>% html_nodes(".airlineName") %>% html_attr("data-name")
+ target %>% html_nodes(".detailsLink") %>% html_attr("href")
+ 
+```
+
+```{r}
+remDr$navigate("https://CRAN.r-project.org/")
+XML::htmlParse(remDr$getPageSource()[[1]])
+
+
+remDr$maxWindowSize()
+remDr$screenshot(display = TRUE)
+webElems <- remDr$findElements(using = "tag name", "frame")
+sapply(webElems, function(x){x$getElementAttribute("src")})
+
+```
+
+
